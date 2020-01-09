@@ -1,0 +1,13 @@
+server:
+  name: Host
+  host: 127.0.0.1
+  port: 8081
+  user: root
+  key: /Users/{USERNAME}/.ssh/id_rsa
+
+ui:
+  show: true
+  width: 600
+  height: 600
+
+
