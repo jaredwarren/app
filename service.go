@@ -10,30 +10,30 @@ import (
 	"path/filepath"
 
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 )
 
-// Closer ...
-type Closer interface {
+// Controller web service controller, handles all the work
+type Controller interface {
 	Close()
 }
 
-// Service ...
+// Service basic web service
 type Service struct {
 	Name        string
 	Mux         *mux.Router
 	Exit        chan error
 	Server      *http.Server
-	Controllers []Closer
+	Controllers []Controller
 	Home        *url.URL
 	Config      *Config
 }
 
 // New instantiates a service with the given name.
 func New(config *Config) *Service {
+	// TODO: add default config and/or validate values
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
 	u, _ := url.Parse(fmt.Sprintf("http://%s", addr))
-	var service = &Service{
+	var app = &Service{
 		Name:   config.Name,
 		Exit:   make(chan error),
 		Home:   u,
@@ -45,33 +45,38 @@ func New(config *Config) *Service {
 	signal.Notify(signalChan, os.Interrupt)
 	go func() {
 		done := <-signalChan
-		// service.Close() // close is called later, not sure where it's better to call
-		service.Exit <- fmt.Errorf("%s", done)
+		app.Exit <- fmt.Errorf("%s", done)
 	}()
 
 	// Start Server
-	service.Mux = mux.NewRouter()
-	service.Mux.HandleFunc("/static/{filename:[a-zA-Z0-9\\.\\-\\_\\/]*}", FileServer)
-	service.Server = &http.Server{
+	app.Mux = mux.NewRouter()
+	app.Mux.HandleFunc("/static/{filename:[a-zA-Z0-9\\.\\-\\_\\/]*}", FileServer)
+	app.Server = &http.Server{
 		Addr:    addr,
-		Handler: service.Mux,
+		Handler: app.Mux,
 	}
 	go func() {
 		// TODO: add https, stuff...
 		fmt.Printf("HTTP server listening on %q\n", addr)
-		service.Exit <- service.Server.ListenAndServe()
+		app.Exit <- app.Server.ListenAndServe()
 	}()
 
-	return service
+	return app
 }
 
-// Close ...
+// Close http server and any registered controllers
 func (s *Service) Close() {
+	for _, c := range s.Controllers {
+		if c != nil {
+			c.Close()
+		}
+	}
+
 	s.Server.Close()
 }
 
-// Register ...
-func (s *Service) Register(c Closer) {
+// Register adds controller to list of controllers
+func (s *Service) Register(c Controller) {
 	s.Controllers = append(s.Controllers, c)
 }
 
@@ -81,10 +86,4 @@ func FileServer(w http.ResponseWriter, r *http.Request) {
 	file := vars["filename"]
 	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(file)))
 	http.ServeFile(w, r, "./static/"+file)
-}
-
-// InternalError ...
-func InternalError(ws *websocket.Conn, msg string, err error) {
-	fmt.Println(msg, err)
-	ws.WriteMessage(websocket.TextMessage, []byte("Internal server error."))
 }
