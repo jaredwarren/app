@@ -66,15 +66,7 @@ func NewNative(conf *Config) *App {
 		}
 	}
 
-	// // setup logging
-	// logFile := filepath.Join(storeDir, "out.log")
-	// fmt.Println("Log File:", logFile)
-	// f, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	// if err != nil {
-	// 	log.Fatalf("error opening file: %v", err)
-	// }
-	// defer f.Close()
-	// log.SetOutput(f)
+	// TODO: setup logging
 
 	// load config from file
 	if conf == nil {

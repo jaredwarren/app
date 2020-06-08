@@ -42,14 +42,26 @@ type Service struct {
 
 // NewWeb instantiates a service with the given name.
 func NewWeb(config *WebConfig) *Service {
-	// TODO: add default config and/or validate values
-	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-	u, _ := url.Parse(fmt.Sprintf("http://%s", addr))
+	// TODO: validate values
+	var addr string
+	if config.Host == "" {
+		if config.Port > 0 {
+			// port given, but host isn't assume local host
+			config.Host = "127.0.0.1"
+			addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
+		}
+	} else if config.Port <= 0 {
+		addr = config.Host
+	} else {
+		addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
+	}
 	app := &Service{
 		Name:   config.Name,
 		Exit:   make(chan error),
-		Home:   u,
 		Config: config,
+	}
+	if addr != "" {
+		app.Home, _ = url.Parse(fmt.Sprintf("http://%s", addr))
 	}
 
 	// Interrupt handler (ctrl-c)
@@ -60,12 +72,10 @@ func NewWeb(config *WebConfig) *Service {
 		app.Exit <- fmt.Errorf("%s", done)
 	}()
 
-	// Start Server
+	// Create Router and add default paths
 	app.Mux = mux.NewRouter()
 	app.Mux.HandleFunc("/static/{filename:[a-zA-Z0-9\\.\\-\\_\\/]*}", FileServer)
 	app.Mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		// favicon
-
 		// brew install imagemagick
 		// convert -background none static/db.svg -define icon:auto-resize static/favicon.ico
 		if !fileExists("static/favicon.ico") {
@@ -76,6 +86,8 @@ func NewWeb(config *WebConfig) *Service {
 		http.ServeFile(w, r, "static/favicon.ico")
 	})
 	app.Mux.HandleFunc("/health-check", HealthCheck).Methods("GET", "HEAD")
+
+	// Start Server
 	app.Server = &http.Server{
 		Addr:    addr,
 		Handler: app.Mux,
@@ -118,8 +130,7 @@ func HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
-// fileExists checks if a file exists and is not a directory before we
-// try using it to prevent further errors.
+// fileExists checks if a file exists
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
 	if os.IsNotExist(err) {

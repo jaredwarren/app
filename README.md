@@ -6,12 +6,11 @@ Super simple base web application. I just got tired of copying the same code to 
 ### Config Format
 ```yml
 server:
-  name: Host
-  host: 127.0.0.1
-  port: 8081
-  user: root
-  key: /Users/jaredwarren/.ssh/id_rsa
+  name: Host # Name/Title of web service
+  host: 127.0.0.1 # TCP address to listen on
+  port: 8081 # TCP port to listen on
 
+# Native Config Options
 ui:
   show: true
   width: 600
