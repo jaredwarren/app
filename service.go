@@ -12,6 +12,18 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// WebConfig ...
+type WebConfig struct {
+	Name        string
+	Host        string
+	Port        int
+	User        string
+	Pass        string
+	Key         string
+	TemplateDir string
+	StaticDir   string
+}
+
 // Controller web service controller, handles all the work
 type Controller interface {
 	Close()
@@ -25,15 +37,15 @@ type Service struct {
 	Server      *http.Server
 	Controllers []Controller
 	Home        *url.URL
-	Config      *Config
+	Config      *WebConfig
 }
 
-// New instantiates a service with the given name.
-func New(config *Config) *Service {
+// NewWeb instantiates a service with the given name.
+func NewWeb(config *WebConfig) *Service {
 	// TODO: add default config and/or validate values
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
 	u, _ := url.Parse(fmt.Sprintf("http://%s", addr))
-	var app = &Service{
+	app := &Service{
 		Name:   config.Name,
 		Exit:   make(chan error),
 		Home:   u,
@@ -51,6 +63,19 @@ func New(config *Config) *Service {
 	// Start Server
 	app.Mux = mux.NewRouter()
 	app.Mux.HandleFunc("/static/{filename:[a-zA-Z0-9\\.\\-\\_\\/]*}", FileServer)
+	app.Mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		// favicon
+
+		// brew install imagemagick
+		// convert -background none static/db.svg -define icon:auto-resize static/favicon.ico
+		if !fileExists("static/favicon.ico") {
+			// TODO: spit out generic ico
+			fmt.Println("no favicon.ico found")
+		}
+		w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext("static/favicon.ico")))
+		http.ServeFile(w, r, "static/favicon.ico")
+	})
+	app.Mux.HandleFunc("/health-check", HealthCheck).Methods("GET", "HEAD")
 	app.Server = &http.Server{
 		Addr:    addr,
 		Handler: app.Mux,
@@ -86,4 +111,19 @@ func FileServer(w http.ResponseWriter, r *http.Request) {
 	file := vars["filename"]
 	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(file)))
 	http.ServeFile(w, r, "./static/"+file)
+}
+
+// HealthCheck return ok
+func HealthCheck(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("OK"))
+}
+
+// fileExists checks if a file exists and is not a directory before we
+// try using it to prevent further errors.
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
 }
