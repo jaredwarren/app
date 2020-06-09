@@ -2,14 +2,17 @@ package app
 
 import (
 	"fmt"
+	"log"
 	"mime"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 
 	"github.com/gorilla/mux"
+	"github.com/spf13/viper"
 )
 
 // WebConfig ...
@@ -41,24 +44,48 @@ type Service struct {
 }
 
 // NewWeb instantiates a service with the given name.
-func NewWeb(config *WebConfig) *Service {
+func NewWeb(conf *WebConfig) *Service {
+
+	// load config from file
+	if conf == nil {
+		resourceDir := getResourceDir()
+		// setting config and payt is redundant if already set in web service
+		viper.SetConfigName("config_" + runtime.GOOS)
+		viper.AddConfigPath(resourceDir)
+		if err := viper.ReadInConfig(); err != nil {
+			log.Fatalf("Error reading config file, %s", err)
+		}
+	}
+
+	// load web service config
+	var (
+		serverConfig *WebConfig
+	)
+	{
+		if conf == nil {
+			viper.UnmarshalKey("server", &serverConfig)
+		} else {
+			serverConfig = conf
+		}
+	}
+
 	// TODO: validate values
 	var addr string
-	if config.Host == "" {
-		if config.Port > 0 {
+	if serverConfig.Host == "" {
+		if serverConfig.Port > 0 {
 			// port given, but host isn't assume local host
-			config.Host = "127.0.0.1"
-			addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
+			serverConfig.Host = "127.0.0.1"
+			addr = fmt.Sprintf("%s:%d", serverConfig.Host, serverConfig.Port)
 		}
-	} else if config.Port <= 0 {
-		addr = config.Host
+	} else if serverConfig.Port <= 0 {
+		addr = serverConfig.Host
 	} else {
-		addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
+		addr = fmt.Sprintf("%s:%d", serverConfig.Host, serverConfig.Port)
 	}
 	app := &Service{
-		Name:   config.Name,
+		Name:   serverConfig.Name,
 		Exit:   make(chan error),
-		Config: config,
+		Config: conf,
 	}
 	if addr != "" {
 		app.Home, _ = url.Parse(fmt.Sprintf("http://%s", addr))

@@ -44,27 +44,7 @@ type App struct {
 
 // NewNative instantiates a service with the given name.
 func NewNative(conf *Config) *App {
-	var (
-		resourceDir = "."
-		// storeDir = "."
-	)
-	{
-		// Try to find the resource directory
-		// the problem is when running as a native app os.Getwd is ~/ and
-		// and when running from commandline (go run) os.Executable is random garbage
-		// Good enough for now
-		if !terminal.IsTerminal(int(os.Stdout.Fd())) {
-			cwd, _ := os.Executable()
-			resourceDir = filepath.Join(filepath.Dir(filepath.Dir(cwd)), "Resources")
-			// for now because I can't figure out why "Application Support" dir doesn't work
-			// storeDir = filepath.Join(filepath.Dir(filepath.Dir(cwd)), "Resources")
-			// storeDir = "~/Library/Application Support/invoice"
-			// os.Mkdir(storeDir, os.ModePerm)
-			os.Chdir(resourceDir)
-		} else {
-			resourceDir, _ = os.Getwd()
-		}
-	}
+	resourceDir := getResourceDir()
 
 	// TODO: setup logging
 
@@ -172,4 +152,24 @@ func (a *App) Close() {
 	if a.UI != nil {
 		a.UI.Close()
 	}
+}
+
+// getResourceDir tries to find the resource directory
+func getResourceDir() string {
+	resourceDir := "."
+	// the problem is when running as a native app os.Getwd is ~/ and
+	// and when running from commandline (go run) os.Executable is random garbage
+	// Good enough for now
+	if !terminal.IsTerminal(int(os.Stdout.Fd())) {
+		cwd, _ := os.Executable()
+		resourceDir = filepath.Join(filepath.Dir(filepath.Dir(cwd)), "Resources")
+		// for now because I can't figure out why "Application Support" dir doesn't work
+		// storeDir = filepath.Join(filepath.Dir(filepath.Dir(cwd)), "Resources")
+		// storeDir = "~/Library/Application Support/invoice"
+		// os.Mkdir(storeDir, os.ModePerm)
+		os.Chdir(resourceDir)
+	} else {
+		resourceDir, _ = os.Getwd()
+	}
+	return resourceDir
 }
